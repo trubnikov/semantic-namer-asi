@@ -3,7 +3,7 @@
 // according to platform-specific naming conventions.
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_MODELS_ENDPOINT = 'https://api.groq.com/openai/v1/models';
 
 interface PrunedNode {
     id: string;
@@ -14,14 +14,66 @@ interface PrunedNode {
 
 figma.showUI(__html__, { width: 320, height: 300 });
 
-// Load saved API key and model, send to UI on startup
+interface GroqModel {
+    id: string;
+    owned_by: string;
+}
+
+const fetchAvailableModels = async (apiKey: string): Promise<string[]> => {
+    try {
+        const response = await fetch(GROQ_MODELS_ENDPOINT, {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+        if (!response.ok) return [];
+        const data = await response.json() as { data: GroqModel[] };
+        return data.data.map(m => m.id);
+    } catch {
+        return [];
+    }
+};
+
+const selectBestModels = (models: string[]): string[] => {
+    // Prefer larger, more powerful models (70B+, versatile)
+    const preferredPatterns = [
+        /70b.*versatile/i,
+        /405b/i,
+        /127b/i,
+        /70b/i,
+        /\.5-70b/i
+    ];
+
+    const scored = models.map(m => {
+        let score = 0;
+        preferredPatterns.forEach((pattern, idx) => {
+            if (pattern.test(m)) score = preferredPatterns.length - idx;
+        });
+        return { model: m, score };
+    });
+
+    return scored
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map(m => m.model);
+};
+
+// Load saved API key and available models on startup
 (async () => {
     const savedKey = await figma.clientStorage.getAsync('groq-api-key') as string | undefined;
     const savedModel = await figma.clientStorage.getAsync('groq-model') as string | undefined;
+
+    let availableModels: string[] = [];
+    if (savedKey) {
+        availableModels = await fetchAvailableModels(savedKey);
+        if (availableModels.length > 0) {
+            availableModels = selectBestModels(availableModels);
+        }
+    }
+
     figma.ui.postMessage({
         type: 'load-settings',
         key: savedKey || '',
-        model: savedModel || DEFAULT_GROQ_MODEL
+        model: savedModel || (availableModels[0] || 'llama-3.3-70b-versatile'),
+        availableModels
     });
 })();
 
@@ -75,8 +127,20 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string
     }
 
     if (msg.type === 'save-model') {
-        await figma.clientStorage.setAsync('groq-model', msg.model || DEFAULT_GROQ_MODEL);
+        await figma.clientStorage.setAsync('groq-model', msg.model || '');
         sendStatus('Model saved.');
+        return;
+    }
+
+    if (msg.type === 'fetch-models') {
+        const apiKey = msg.key;
+        if (!apiKey) {
+            figma.ui.postMessage({ type: 'models-loaded', models: [] });
+            return;
+        }
+        const models = await fetchAvailableModels(apiKey);
+        const bestModels = selectBestModels(models);
+        figma.ui.postMessage({ type: 'models-loaded', models: bestModels });
         return;
     }
 
@@ -91,7 +155,11 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string
     }
 
     const platform = msg.platform || 'iOS (SwiftUI)';
-    const model = msg.model || (await figma.clientStorage.getAsync('groq-model') as string | undefined) || DEFAULT_GROQ_MODEL;
+    const model = msg.model || (await figma.clientStorage.getAsync('groq-model') as string | undefined) || '';
+    if (!model) {
+        sendStatus('Error: Please select a Groq model.');
+        return;
+    }
     const selection = figma.currentPage.selection;
 
     if (selection.length !== 1) {

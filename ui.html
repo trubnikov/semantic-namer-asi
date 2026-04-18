@@ -15,7 +15,9 @@
         .row input, .row select { flex: 1; margin: 0; }
         .save-btn { width: auto; margin-top: 0; padding: 8px 14px; background-color: #555; }
         .save-btn:hover { background-color: #333; }
+        .save-btn:disabled { background-color: #b0b0b0; }
         #status { margin-top: 12px; font-size: 12px; color: #555; }
+        .loading { color: #999; font-style: italic; }
     </style>
 </head>
 <body>
@@ -30,11 +32,9 @@
         <h3>Groq Model</h3>
         <div class="row">
             <select id="groqModel">
-                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (recommended)</option>
-                <option value="llama-3.1-70b-versatile">Llama 3.1 70B</option>
-                <option value="llama-3.1-8b-instant">Llama 3.1 8B (fast)</option>
+                <option value="">Loading models...</option>
             </select>
-            <button class="save-btn" id="saveModelBtn">Save</button>
+            <button class="save-btn" id="saveModelBtn" disabled>Save</button>
         </div>
     </div>
     <div class="section">
@@ -47,7 +47,7 @@
         </select>
     </div>
     <button id="renameBtn">Rename Layers</button>
-    <p id="status">Enter API key, select a frame and click rename.</p>
+    <p id="status">Enter API key to load available models.</p>
 
     <script>
         const renameBtn = document.getElementById('renameBtn');
@@ -58,14 +58,28 @@
         const saveKeyBtn = document.getElementById('saveKeyBtn');
         const saveModelBtn = document.getElementById('saveModelBtn');
 
+        const loadModels = () => {
+            const key = apiKeyInput.value.trim();
+            if (!key) {
+                groqModelSelect.innerHTML = '<option value="">Enter API key to load models</option>';
+                saveModelBtn.disabled = true;
+                return;
+            }
+            groqModelSelect.innerHTML = '<option value="">Loading models...</option>';
+            saveModelBtn.disabled = true;
+            parent.postMessage({ pluginMessage: { type: 'fetch-models', key } }, '*');
+        };
+
         saveKeyBtn.onclick = () => {
             const key = apiKeyInput.value.trim();
             if (!key) return;
             parent.postMessage({ pluginMessage: { type: 'save-api-key', key } }, '*');
+            loadModels();
         };
 
         saveModelBtn.onclick = () => {
             const model = groqModelSelect.value;
+            if (!model) return;
             parent.postMessage({ pluginMessage: { type: 'save-model', model } }, '*');
         };
 
@@ -84,7 +98,26 @@
                 statusLabel.textContent = message.text;
             } else if (message.type === 'load-settings') {
                 if (message.key) apiKeyInput.value = message.key;
-                if (message.model) groqModelSelect.value = message.model;
+                if (message.availableModels && message.availableModels.length > 0) {
+                    groqModelSelect.innerHTML = message.availableModels
+                        .map(m => `<option value="${m}">${m}</option>`)
+                        .join('');
+                    if (message.model) groqModelSelect.value = message.model;
+                    saveModelBtn.disabled = false;
+                } else if (message.key) {
+                    loadModels();
+                }
+            } else if (message.type === 'models-loaded') {
+                if (message.models && message.models.length > 0) {
+                    groqModelSelect.innerHTML = message.models
+                        .map(m => `<option value="${m}">${m}</option>`)
+                        .join('');
+                    saveModelBtn.disabled = false;
+                    statusLabel.textContent = `Loaded ${message.models.length} models.`;
+                } else {
+                    groqModelSelect.innerHTML = '<option value="">No models available</option>';
+                    statusLabel.textContent = 'Error: Could not load models. Check your API key.';
+                }
             }
         };
     </script>
