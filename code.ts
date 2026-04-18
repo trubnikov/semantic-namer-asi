@@ -3,7 +3,7 @@
 // according to platform-specific naming conventions.
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.1-70b-versatile';
+const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 interface PrunedNode {
     id: string;
@@ -14,10 +14,15 @@ interface PrunedNode {
 
 figma.showUI(__html__, { width: 320, height: 300 });
 
-// Load saved API key and send to UI on startup
+// Load saved API key and model, send to UI on startup
 (async () => {
     const savedKey = await figma.clientStorage.getAsync('groq-api-key') as string | undefined;
-    figma.ui.postMessage({ type: 'load-api-key', key: savedKey || '' });
+    const savedModel = await figma.clientStorage.getAsync('groq-model') as string | undefined;
+    figma.ui.postMessage({
+        type: 'load-settings',
+        key: savedKey || '',
+        model: savedModel || DEFAULT_GROQ_MODEL
+    });
 })();
 
 const sendStatus = (text: string): void => {
@@ -62,10 +67,16 @@ You MUST return ONLY a valid JSON object mapping the layer ID to its new name. D
 `;
 };
 
-figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string }) => {
+figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string; model?: string }) => {
     if (msg.type === 'save-api-key') {
         await figma.clientStorage.setAsync('groq-api-key', msg.key || '');
         sendStatus('API key saved.');
+        return;
+    }
+
+    if (msg.type === 'save-model') {
+        await figma.clientStorage.setAsync('groq-model', msg.model || DEFAULT_GROQ_MODEL);
+        sendStatus('Model saved.');
         return;
     }
 
@@ -80,6 +91,7 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string
     }
 
     const platform = msg.platform || 'iOS (SwiftUI)';
+    const model = msg.model || (await figma.clientStorage.getAsync('groq-model') as string | undefined) || DEFAULT_GROQ_MODEL;
     const selection = figma.currentPage.selection;
 
     if (selection.length !== 1) {
@@ -109,7 +121,7 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: GROQ_MODEL,
+                model: model,
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: 'Rename the layers based on the provided tree and rules. Return only the JSON mapping.' }

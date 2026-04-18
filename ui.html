@@ -12,7 +12,7 @@
         button:disabled { background-color: #b0b0b0; cursor: not-allowed; }
         .section { margin-bottom: 14px; }
         .row { display: flex; gap: 8px; }
-        .row input { flex: 1; }
+        .row input, .row select { flex: 1; margin: 0; }
         .save-btn { width: auto; margin-top: 0; padding: 8px 14px; background-color: #555; }
         .save-btn:hover { background-color: #333; }
         #status { margin-top: 12px; font-size: 12px; color: #555; }
@@ -24,6 +24,17 @@
         <div class="row">
             <input type="password" id="apiKey" placeholder="gsk_..." />
             <button class="save-btn" id="saveKeyBtn">Save</button>
+        </div>
+    </div>
+    <div class="section">
+        <h3>Groq Model</h3>
+        <div class="row">
+            <select id="groqModel">
+                <option value="llama-3.3-70b-versatile">Llama 3.3 70B (recommended)</option>
+                <option value="llama-3.1-70b-versatile">Llama 3.1 70B</option>
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B (fast)</option>
+            </select>
+            <button class="save-btn" id="saveModelBtn">Save</button>
         </div>
     </div>
     <div class="section">
@@ -43,7 +54,9 @@
         const platformSelect = document.getElementById('platform');
         const statusLabel = document.getElementById('status');
         const apiKeyInput = document.getElementById('apiKey');
+        const groqModelSelect = document.getElementById('groqModel');
         const saveKeyBtn = document.getElementById('saveKeyBtn');
+        const saveModelBtn = document.getElementById('saveModelBtn');
 
         saveKeyBtn.onclick = () => {
             const key = apiKeyInput.value.trim();
@@ -51,11 +64,17 @@
             parent.postMessage({ pluginMessage: { type: 'save-api-key', key } }, '*');
         };
 
+        saveModelBtn.onclick = () => {
+            const model = groqModelSelect.value;
+            parent.postMessage({ pluginMessage: { type: 'save-model', model } }, '*');
+        };
+
         renameBtn.onclick = () => {
             const platform = platformSelect.value;
             const key = apiKeyInput.value.trim();
+            const model = groqModelSelect.value;
             statusLabel.textContent = 'Extracting layer tree...';
-            parent.postMessage({ pluginMessage: { type: 'rename-layers', platform, key } }, '*');
+            parent.postMessage({ pluginMessage: { type: 'rename-layers', platform, key, model } }, '*');
         };
 
         window.onmessage = (event) => {
@@ -63,8 +82,9 @@
             if (!message) return;
             if (message.type === 'status-update') {
                 statusLabel.textContent = message.text;
-            } else if (message.type === 'load-api-key' && message.key) {
-                apiKeyInput.value = message.key;
+            } else if (message.type === 'load-settings') {
+                if (message.key) apiKeyInput.value = message.key;
+                if (message.model) groqModelSelect.value = message.model;
             }
         };
     </script>
