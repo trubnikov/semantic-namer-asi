@@ -4,7 +4,6 @@
     "lib": ["ES2017"],
     "strict": true,
     "moduleResolution": "node",
-    "outDir": "./",
     "skipLibCheck": true
   },
   "include": ["code.ts"]
