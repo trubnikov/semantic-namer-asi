@@ -3,7 +3,7 @@
 // according to platform-specific naming conventions.
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'mixtral-8x7b-32768';
+const GROQ_MODEL = 'llama-3.1-70b-versatile';
 
 interface PrunedNode {
     id: string;
