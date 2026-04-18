@@ -6,6 +6,6 @@
   "ui": "ui.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://api.groq.com"]
+    "allowedDomains": ["https://api.groq.com", "https://api.anthropic.com"]
   }
 }
