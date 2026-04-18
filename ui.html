@@ -73,6 +73,7 @@
         const $ = id => document.getElementById(id);
 
         function switchProvider(provider) {
+            keys[currentProvider] = $('apiKey').value.trim();
             currentProvider = provider;
             $('tabGroq').classList.toggle('active', provider === 'groq');
             $('tabAnthropic').classList.toggle('active', provider === 'anthropic');
