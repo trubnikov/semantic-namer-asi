@@ -8,5 +8,5 @@
   "networkAccess": {
     "allowedDomains": ["https://api.groq.com"]
   },
-  "permissions": ["currentpage"]
+  "permissions": ["currentPage"]
 }
