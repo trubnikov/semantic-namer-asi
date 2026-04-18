@@ -2,7 +2,6 @@
 // Calls Groq API (Llama-3-8B) to rename layers within a selected frame
 // according to platform-specific naming conventions.
 
-const GROQ_API_KEY = 'YOUR_GROQ_API_KEY_HERE';
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama3-8b-8192';
 
@@ -13,7 +12,13 @@ interface PrunedNode {
     children: PrunedNode[];
 }
 
-figma.showUI(__html__, { width: 320, height: 220 });
+figma.showUI(__html__, { width: 320, height: 300 });
+
+// Load saved API key and send to UI on startup
+(async () => {
+    const savedKey = await figma.clientStorage.getAsync('groq-api-key') as string | undefined;
+    figma.ui.postMessage({ type: 'load-api-key', key: savedKey || '' });
+})();
 
 const sendStatus = (text: string): void => {
     figma.ui.postMessage({ type: 'status-update', text });
@@ -57,8 +62,20 @@ You MUST return ONLY a valid JSON object mapping the layer ID to its new name. D
 `;
 };
 
-figma.ui.onmessage = async (msg: { type: string; platform?: string }) => {
+figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string }) => {
+    if (msg.type === 'save-api-key') {
+        await figma.clientStorage.setAsync('groq-api-key', msg.key || '');
+        sendStatus('API key saved.');
+        return;
+    }
+
     if (msg.type !== 'rename-layers') {
+        return;
+    }
+
+    const apiKey = msg.key || (await figma.clientStorage.getAsync('groq-api-key') as string | undefined) || '';
+    if (!apiKey) {
+        sendStatus('Error: Please enter and save your Groq API key.');
         return;
     }
 
@@ -89,7 +106,7 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string }) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${GROQ_API_KEY}`
+                'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
                 model: GROQ_MODEL,
@@ -116,8 +133,8 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string }) => {
             return;
         }
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        sendStatus(`Error: Network/API failure - ${msg}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        sendStatus(`Error: Network/API failure - ${errMsg}`);
         return;
     }
 
@@ -125,8 +142,8 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string }) => {
     try {
         nameMap = JSON.parse(responseText);
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        sendStatus(`Error: Failed to parse LLM JSON - ${msg}`);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        sendStatus(`Error: Failed to parse LLM JSON - ${errMsg}`);
         return;
     }
 
@@ -144,7 +161,7 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string }) => {
                 (node as BaseNode & { name: string }).name = newName;
                 renamedCount++;
             }
-        } catch (err) {
+        } catch {
             // Skip nodes that can't be found or renamed
         }
     }
