@@ -144,30 +144,44 @@ const callGroq = async (apiKey: string, model: string, systemPrompt: string): Pr
     return text;
 };
 
+const toErrMsg = (err: unknown): string => {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    try { return JSON.stringify(err); } catch { return 'Unknown error'; }
+};
+
 const callAnthropic = async (apiKey: string, model: string, systemPrompt: string): Promise<string> => {
-    const response = await fetch(ANTHROPIC_ENDPOINT, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': ANTHROPIC_VERSION
-        },
-        body: JSON.stringify({
-            model,
-            max_tokens: 2048,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: 'Rename the layers. Return only the JSON mapping.' }]
-        })
-    });
+    let response: Response;
+    try {
+        response = await fetch(ANTHROPIC_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': ANTHROPIC_VERSION
+            },
+            body: JSON.stringify({
+                model,
+                max_tokens: 2048,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: 'Rename the layers. Return only the JSON mapping.' }]
+            })
+        });
+    } catch (err) {
+        throw new Error(`Network error: ${toErrMsg(err)}`);
+    }
     if (!response.ok) {
         const err = await response.text();
-        throw new Error(`Anthropic API ${response.status} - ${err.slice(0, 120)}`);
+        throw new Error(`Anthropic API ${response.status} - ${err.slice(0, 200)}`);
     }
     const data = await response.json();
-    let text = data?.content?.[0]?.text;
-    if (!text) throw new Error('Empty response from Anthropic API.');
-    // Strip markdown code blocks if present
-    text = text.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    // Find first text block (skip thinking blocks)
+    const textBlock = (data?.content as { type: string; text?: string }[] | undefined)
+        ?.find(b => b.type === 'text');
+    let text = textBlock?.text;
+    if (!text) throw new Error(`Empty response. Content: ${JSON.stringify(data?.content)}`);
+    // Strip markdown code fences if present
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
     return text;
 };
 
@@ -251,7 +265,7 @@ figma.ui.onmessage = async (msg: {
             ? await callAnthropic(apiKey, model, systemPrompt)
             : await callGroq(apiKey, model, systemPrompt);
     } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const errMsg = toErrMsg(err);
         sendStatus(`Error: ${errMsg}`);
         return;
     }
@@ -260,7 +274,7 @@ figma.ui.onmessage = async (msg: {
     try {
         nameMap = JSON.parse(responseText);
     } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const errMsg = toErrMsg(err);
         sendStatus(`Error: Failed to parse JSON - ${errMsg}`);
         return;
     }
