@@ -81,7 +81,12 @@ const sendStatus = (text: string): void => {
     figma.ui.postMessage({ type: 'status-update', text });
 };
 
-const traverse = (node: SceneNode): PrunedNode => {
+const MAX_NODES = 60;
+const MAX_DEPTH = 5;
+let nodeCount = 0;
+
+const traverse = (node: SceneNode, depth = 0): PrunedNode => {
+    nodeCount++;
     const pruned: PrunedNode = {
         id: node.id,
         name: node.name,
@@ -89,9 +94,10 @@ const traverse = (node: SceneNode): PrunedNode => {
         children: []
     };
 
-    if ('children' in node) {
+    if ('children' in node && depth < MAX_DEPTH && nodeCount < MAX_NODES) {
         for (const child of node.children) {
-            pruned.children.push(traverse(child as SceneNode));
+            if (nodeCount >= MAX_NODES) break;
+            pruned.children.push(traverse(child as SceneNode, depth + 1));
         }
     }
 
@@ -174,8 +180,11 @@ figma.ui.onmessage = async (msg: { type: string; platform?: string; key?: string
     }
 
     sendStatus('Extracting layer tree...');
+    nodeCount = 0;
     const layerTree = traverse(selected);
+    const truncated = nodeCount >= MAX_NODES;
     const layerTreeString = JSON.stringify(layerTree, null, 2);
+    if (truncated) sendStatus(`Tree truncated to ${MAX_NODES} nodes. Sending to Groq API...`);
     const systemPrompt = createSystemPrompt(platform, layerTreeString);
 
     sendStatus('Sending to Groq API...');
