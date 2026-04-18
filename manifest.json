@@ -7,6 +7,5 @@
   "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": ["https://api.groq.com"]
-  },
-  "permissions": ["currentPage"]
+  }
 }
