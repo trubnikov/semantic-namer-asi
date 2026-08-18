@@ -1,3 +1,14 @@
 node_modules/
 code.js
 *.js.map
+
+# reorg 2026-08-18: standard ignores
+.DS_Store
+__pycache__/
+.venv/
+venv/
+.env
+Pods/
+DerivedData/
+dist-electron/
+.pytest_cache/
