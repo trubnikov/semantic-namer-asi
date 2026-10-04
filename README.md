@@ -10,5 +10,4 @@ npx tsc -w            # compiles code.ts → code.js
 ```
 Figma → Plugins → Development → Import plugin from manifest → `manifest.json`. Enter an API key in the plugin UI.
 
-## Links
-GitHub: trubnikov/semantic-namer-asi (public)
+Built by [Dima Trubnikov](https://www.dimatrubnikov.com).
